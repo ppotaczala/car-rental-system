@@ -1,2 +1,7 @@
-package com.example.carrental;public class CarType {
+package com.example.carrental;
+
+public enum CarType {
+    SEDAN,
+    SUV,
+    VAN
 }

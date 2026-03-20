@@ -1,103 +1,21 @@
-name: AI CI
+name: AI Review
 
 on:
-  push:
-    branches: [ master, main, develop ]
   pull_request:
-    branches: [ master, main, develop ]
-
-permissions:
-  contents: read
-  pull-requests: write
+    types: [opened, synchronize, reopened]
 
 jobs:
-  build-test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Make mvnw executable
-        run: chmod +x mvnw
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-
-      - name: Build and test
-        run: ./mvnw -B clean test
-
   ai-review:
     runs-on: ubuntu-latest
-    needs: build-test
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 5
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: AI code review
+        uses: anc95/ChatGPT-CodeReview@main
         with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install deps
-        run: pip install requests
-
-      - name: Get changed files
-        run: |
-          chmod +x scripts/changed_files.sh
-          scripts/changed_files.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
-
-      - name: Run AI review
-        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          python scripts/ai_review.py > ai-review.md || echo "⚠️ AI review temporarily unavailable." > ai-review.md
-
-      - name: Comment on PR (create or update)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const body = fs.readFileSync('ai-review.md', 'utf8');
-
-            const marker = "## 🤖 AI Review";
-            const newBody = `${marker}\n\n${body}`;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-            });
-
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: newBody
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body: newBody
-              });
-            }
-
-      - name: Upload AI review
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-review
-          path: ai-review.md
+          MODEL: gpt-4.1-mini
+          LANGUAGE: English
