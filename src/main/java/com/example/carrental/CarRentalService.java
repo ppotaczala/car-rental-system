@@ -6,6 +6,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class CarRentalService {
@@ -23,11 +25,11 @@ public class CarRentalService {
         }
     }
 
-    public boolean reserve(CarType type, LocalDateTime start, int days) {
+    public Optional<Reservation> reserve(CarType type, LocalDateTime start, int days) {
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(start, "start must not be null");
 
-        Reservation newReservation = new Reservation(type, start, days);
+        Reservation newReservation = new Reservation(UUID.randomUUID(), type, start, days);
         ReentrantLock lock = locksByType.get(type);
 
         lock.lock();
@@ -35,15 +37,15 @@ public class CarRentalService {
             List<Reservation> reservationsForType = reservationsByType.get(type);
 
             long overlappingReservations = reservationsForType.stream()
-                    .filter(reservation -> reservation.overlaps(newReservation))
+                    .filter(existingReservation -> existingReservation.overlaps(newReservation))
                     .count();
 
             if (overlappingReservations >= inventory.getLimit(type)) {
-                return false;
+                return Optional.empty();
             }
 
             reservationsForType.add(newReservation);
-            return true;
+            return Optional.of(newReservation);
         } finally {
             lock.unlock();
         }
@@ -53,5 +55,17 @@ public class CarRentalService {
         return reservationsByType.values().stream()
                 .flatMap(List::stream)
                 .toList();
+    }
+
+    public List<Reservation> getReservationsByType(CarType type) {
+        Objects.requireNonNull(type, "type must not be null");
+
+        ReentrantLock lock = locksByType.get(type);
+        lock.lock();
+        try {
+            return List.copyOf(reservationsByType.get(type));
+        } finally {
+            lock.unlock();
+        }
     }
 }
