@@ -6,17 +6,20 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class CarRentalService {
 
     private final CarInventory inventory;
     private final Map<CarType, List<Reservation>> reservationsByType = new EnumMap<>(CarType.class);
+    private final Map<CarType, ReentrantLock> locksByType = new EnumMap<>(CarType.class);
 
     public CarRentalService(CarInventory inventory) {
         this.inventory = Objects.requireNonNull(inventory, "inventory must not be null");
 
         for (CarType type : CarType.values()) {
             reservationsByType.put(type, new ArrayList<>());
+            locksByType.put(type, new ReentrantLock());
         }
     }
 
@@ -25,18 +28,25 @@ public class CarRentalService {
         Objects.requireNonNull(start, "start must not be null");
 
         Reservation newReservation = new Reservation(type, start, days);
-        List<Reservation> reservationsForType = reservationsByType.get(type);
+        ReentrantLock lock = locksByType.get(type);
 
-        long overlappingReservations = reservationsForType.stream()
-                .filter(reservation -> reservation.overlaps(newReservation))
-                .count();
+        lock.lock();
+        try {
+            List<Reservation> reservationsForType = reservationsByType.get(type);
 
-        if (overlappingReservations >= inventory.getLimit(type)) {
-            return false;
+            long overlappingReservations = reservationsForType.stream()
+                    .filter(reservation -> reservation.overlaps(newReservation))
+                    .count();
+
+            if (overlappingReservations >= inventory.getLimit(type)) {
+                return false;
+            }
+
+            reservationsForType.add(newReservation);
+            return true;
+        } finally {
+            lock.unlock();
         }
-
-        reservationsForType.add(newReservation);
-        return true;
     }
 
     public List<Reservation> getReservations() {
