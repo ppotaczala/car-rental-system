@@ -71,7 +71,7 @@ class CarRentalServiceTest {
     void shouldRejectNullCarType() {
         LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
 
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(NullPointerException.class, () ->
                 service.reserve(null, start, 1)
         );
     }
