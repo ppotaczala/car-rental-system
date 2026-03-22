@@ -51,11 +51,35 @@ class CarRentalServiceTest {
     }
 
     @Test
-    void shouldAllowReservationWhenPeriodsDoNotOverlap() {
+    void shouldAllowReservationWhenPeriodsAreSeparated() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+
+        assertTrue(service.reserve(CarType.VAN, start, 2));
+        assertTrue(service.reserve(CarType.VAN, start.plusDays(3), 1));
+    }
+
+    @Test
+    void shouldAllowReservationWhenOneEndsExactlyWhenAnotherStarts() {
         LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
 
         assertTrue(service.reserve(CarType.VAN, start, 2));
         assertTrue(service.reserve(CarType.VAN, start.plusDays(2), 1));
+    }
+
+    @Test
+    void shouldRejectWhenReservationsOverlapPartially() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+
+        assertTrue(service.reserve(CarType.SEDAN, start, 3));
+        assertFalse(service.reserve(CarType.SEDAN, start.plusDays(1), 2));
+    }
+
+    @Test
+    void shouldRejectWhenNewReservationWrapsExistingReservation() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+
+        assertTrue(service.reserve(CarType.SEDAN, start.plusDays(1), 1));
+        assertFalse(service.reserve(CarType.SEDAN, start, 3));
     }
 
     @Test
@@ -73,6 +97,13 @@ class CarRentalServiceTest {
 
         assertThrows(NullPointerException.class, () ->
                 service.reserve(null, start, 1)
+        );
+    }
+
+    @Test
+    void shouldRejectNullStart() {
+        assertThrows(NullPointerException.class, () ->
+                service.reserve(CarType.SEDAN, null, 1)
         );
     }
 }
