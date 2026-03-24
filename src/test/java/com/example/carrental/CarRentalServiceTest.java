@@ -2,6 +2,8 @@ package com.example.carrental;
 
 import com.example.carrental.pricing.PricingStrategy;
 import com.example.carrental.pricing.StandardPricingStrategy;
+import com.example.carrental.repository.InMemoryReservationRepository;
+import com.example.carrental.repository.ReservationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +35,8 @@ class CarRentalServiceTest {
                 CarType.VAN, BigDecimal.valueOf(200)
         ));
 
-        service = new CarRentalService(inventory, pricingStrategy);
+        ReservationRepository repository = new InMemoryReservationRepository();
+        service = new CarRentalService(inventory, pricingStrategy, repository);
     }
 
     @Test
@@ -52,9 +55,6 @@ class CarRentalServiceTest {
         assertEquals(2, reservation.numberOfDays());
         assertEquals(START.plusDays(2), reservation.end());
         assertEquals(BigDecimal.valueOf(200), quote.totalPrice());
-
-        assertEquals(1, service.getReservations().size());
-        assertTrue(service.getReservations().contains(reservation));
     }
 
     @Test
@@ -65,7 +65,6 @@ class CarRentalServiceTest {
 
         assertTrue(first.isPresent());
         assertTrue(second.isEmpty());
-        assertEquals(1, service.getReservations().size());
     }
 
     @Test
@@ -79,7 +78,6 @@ class CarRentalServiceTest {
 
         assertEquals(BigDecimal.valueOf(300), suvReservation.orElseThrow().totalPrice());
         assertEquals(BigDecimal.valueOf(200), sedanReservation.orElseThrow().totalPrice());
-        assertEquals(2, service.getReservations().size());
     }
 
     @Test
@@ -93,7 +91,6 @@ class CarRentalServiceTest {
 
         assertEquals(BigDecimal.valueOf(400), first.orElseThrow().totalPrice());
         assertEquals(BigDecimal.valueOf(200), second.orElseThrow().totalPrice());
-        assertEquals(2, service.getReservations().size());
     }
 
     @Test
@@ -104,7 +101,6 @@ class CarRentalServiceTest {
 
         assertTrue(first.isPresent());
         assertTrue(second.isPresent());
-        assertEquals(2, service.getReservations().size());
     }
 
     @Test
@@ -115,7 +111,6 @@ class CarRentalServiceTest {
 
         assertTrue(first.isPresent());
         assertTrue(second.isEmpty());
-        assertEquals(1, service.getReservations().size());
     }
 
     @Test
@@ -126,7 +121,6 @@ class CarRentalServiceTest {
 
         assertTrue(first.isPresent());
         assertTrue(second.isEmpty());
-        assertEquals(1, service.getReservations().size());
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.example.carrental;
 
 import com.example.carrental.pricing.PricingStrategy;
+import com.example.carrental.repository.ReservationRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,11 +17,13 @@ public class CarRentalService {
 
     private final CarInventory inventory;
     private final PricingStrategy pricingStrategy;
+    private final ReservationRepository reservationRepository;
     private final Map<CarType, List<Reservation>> reservationsByType = new EnumMap<>(CarType.class);
 
-    public CarRentalService(CarInventory inventory, PricingStrategy pricingStrategy) {
+    public CarRentalService(CarInventory inventory, PricingStrategy pricingStrategy, ReservationRepository reservationRepository) {
         this.inventory = Objects.requireNonNull(inventory, "inventory must not be null");
         this.pricingStrategy = Objects.requireNonNull(pricingStrategy, "pricingStrategy must not be null");
+        this.reservationRepository = reservationRepository;
 
         for (CarType type : CarType.values()) {
             reservationsByType.put(type, new ArrayList<>());
@@ -28,31 +31,29 @@ public class CarRentalService {
     }
 
     public Optional<ReservationQuote> reserve(CarType type, LocalDateTime start, int days) {
-        Objects.requireNonNull(type, "type must not be null");
-        Objects.requireNonNull(start, "start must not be null");
+        Objects.requireNonNull(type);
+        Objects.requireNonNull(start);
 
-        Reservation newReservation = new Reservation(
+        LocalDateTime end = start.plusDays(days);
+
+        long overlapping = reservationRepository.countOverlapping(type, start, end);
+        int limit = inventory.getLimit(type);
+
+        if (overlapping >= limit) {
+            return Optional.empty();
+        }
+
+        Reservation reservation = new Reservation(
                 UUID.randomUUID(),
                 type,
                 start,
                 days
         );
 
-        List<Reservation> reservationsForType = reservationsByType.get(type);
+        reservationRepository.save(reservation);
 
-        long overlappingReservations = reservationsForType.stream()
-                .filter(existing -> existing.overlaps(newReservation))
-                .count();
-
-        int limit = inventory.getLimit(type);
-        if (overlappingReservations >= limit) {
-            return Optional.empty();
-        }
-
-        reservationsForType.add(newReservation);
-
-        BigDecimal totalPrice = pricingStrategy.calculatePrice(newReservation);
-        return Optional.of(new ReservationQuote(newReservation, totalPrice));
+        BigDecimal totalPrice = pricingStrategy.calculatePrice(reservation);
+        return Optional.of(new ReservationQuote(reservation, totalPrice));
     }
 
     public List<Reservation> getReservations() {
