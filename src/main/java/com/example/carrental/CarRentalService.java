@@ -1,37 +1,50 @@
 package com.example.carrental;
 
+import com.example.carrental.pricing.PricingStrategy;
+import com.example.carrental.repository.ReservationRepository;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 
 public class CarRentalService {
 
     private final CarInventory inventory;
-    private final List<Reservation> reservations = new ArrayList<>();
+    private final PricingStrategy pricingStrategy;
+    private final ReservationRepository reservationRepository;
 
-    public CarRentalService(CarInventory inventory) {
+    public CarRentalService(CarInventory inventory, PricingStrategy pricingStrategy, ReservationRepository reservationRepository) {
         this.inventory = Objects.requireNonNull(inventory, "inventory must not be null");
+        this.pricingStrategy = Objects.requireNonNull(pricingStrategy, "pricingStrategy must not be null");
+        this.reservationRepository = reservationRepository;
     }
 
-    public boolean reserve(CarType type, LocalDateTime start, int days) {
-        Reservation newReservation = new Reservation(type, start, days);
+    public Optional<ReservationQuote> reserve(CarType type, LocalDateTime start, int days) {
+        Objects.requireNonNull(type);
+        Objects.requireNonNull(start);
 
-        long overlappingReservations = reservations.stream()
-                .filter(reservation -> reservation.getCarType() == type)
-                .filter(reservation -> reservation.overlaps(newReservation))
-                .count();
+        LocalDateTime end = start.plusDays(days);
 
+        long overlapping = reservationRepository.countOverlapping(type, start, end);
         int limit = inventory.getLimit(type);
-        if (overlappingReservations >= limit) {
-            return false;
+
+        if (overlapping >= limit) {
+            return Optional.empty();
         }
 
-        reservations.add(newReservation);
-        return true;
+        Reservation reservation = new Reservation(
+                UUID.randomUUID(),
+                type,
+                start,
+                days
+        );
+
+        reservationRepository.save(reservation);
+
+        BigDecimal totalPrice = pricingStrategy.calculatePrice(reservation);
+        return Optional.of(new ReservationQuote(reservation, totalPrice));
     }
 
-    public List<Reservation> getReservations() {
-        return List.copyOf(reservations);
-    }
 }
