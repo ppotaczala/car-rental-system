@@ -1,14 +1,18 @@
 package com.example.carrental;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class CarRentalServiceTest {
+
+    private static final LocalDateTime START = LocalDateTime.of(2026, 3, 21, 10, 0);
 
     private CarRentalService service;
 
@@ -23,84 +27,104 @@ class CarRentalServiceTest {
     }
 
     @Test
+    @DisplayName("should create reservation when car is available")
     void shouldReserveWhenAvailable() {
-        boolean result = service.reserve(
-                CarType.SEDAN,
-                LocalDateTime.of(2026, 3, 21, 10, 0),
-                2
-        );
+        Optional<Reservation> result = service.reserve(CarType.SEDAN, START, 2);
 
-        assertTrue(result);
+        assertTrue(result.isPresent());
+
+        Reservation reservation = result.orElseThrow();
+        assertNotNull(reservation.id());
+        assertEquals(CarType.SEDAN, reservation.carType());
+        assertEquals(START, reservation.start());
+        assertEquals(2, reservation.numberOfDays());
         assertEquals(1, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should reject reservation when limit is exceeded")
     void shouldRejectWhenLimitExceeded() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+        Optional<Reservation> first = service.reserve(CarType.SEDAN, START, 2);
+        Optional<Reservation> second = service.reserve(CarType.SEDAN, START, 2);
 
-        assertTrue(service.reserve(CarType.SEDAN, start, 2));
-        assertFalse(service.reserve(CarType.SEDAN, start, 2));
+        assertTrue(first.isPresent());
+        assertTrue(second.isEmpty());
+        assertEquals(1, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should allow reservations for different car types independently")
     void shouldAllowReservationsForDifferentCarTypesIndependently() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+        Optional<Reservation> suvReservation = service.reserve(CarType.SUV, START, 2);
+        Optional<Reservation> sedanReservation = service.reserve(CarType.SEDAN, START, 2);
 
-        assertTrue(service.reserve(CarType.SUV, start, 2));
-        assertTrue(service.reserve(CarType.SEDAN, start, 2));
+        assertTrue(suvReservation.isPresent());
+        assertTrue(sedanReservation.isPresent());
+        assertEquals(2, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should allow reservation when periods are separated")
     void shouldAllowReservationWhenPeriodsAreSeparated() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+        Optional<Reservation> first = service.reserve(CarType.VAN, START, 2);
+        Optional<Reservation> second = service.reserve(CarType.VAN, START.plusDays(3), 1);
 
-        assertTrue(service.reserve(CarType.VAN, start, 2));
-        assertTrue(service.reserve(CarType.VAN, start.plusDays(3), 1));
+        assertTrue(first.isPresent());
+        assertTrue(second.isPresent());
+        assertEquals(2, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should allow reservation when one ends exactly when another starts")
     void shouldAllowReservationWhenOneEndsExactlyWhenAnotherStarts() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+        Optional<Reservation> first = service.reserve(CarType.VAN, START, 2);
+        Optional<Reservation> second = service.reserve(CarType.VAN, START.plusDays(2), 1);
 
-        assertTrue(service.reserve(CarType.VAN, start, 2));
-        assertTrue(service.reserve(CarType.VAN, start.plusDays(2), 1));
+        assertTrue(first.isPresent());
+        assertTrue(second.isPresent());
+        assertEquals(2, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should reject reservation when periods overlap partially")
     void shouldRejectWhenReservationsOverlapPartially() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+        Optional<Reservation> first = service.reserve(CarType.SEDAN, START, 3);
+        Optional<Reservation> second = service.reserve(CarType.SEDAN, START.plusDays(1), 2);
 
-        assertTrue(service.reserve(CarType.SEDAN, start, 3));
-        assertFalse(service.reserve(CarType.SEDAN, start.plusDays(1), 2));
+        assertTrue(first.isPresent());
+        assertTrue(second.isEmpty());
+        assertEquals(1, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should reject reservation when new reservation fully wraps existing reservation")
     void shouldRejectWhenNewReservationWrapsExistingReservation() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
+        Optional<Reservation> first = service.reserve(CarType.SEDAN, START.plusDays(1), 1);
+        Optional<Reservation> second = service.reserve(CarType.SEDAN, START, 3);
 
-        assertTrue(service.reserve(CarType.SEDAN, start.plusDays(1), 1));
-        assertFalse(service.reserve(CarType.SEDAN, start, 3));
+        assertTrue(first.isPresent());
+        assertTrue(second.isEmpty());
+        assertEquals(1, service.getReservations().size());
     }
 
     @Test
+    @DisplayName("should reject invalid number of days")
     void shouldRejectInvalidNumberOfDays() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
-
         assertThrows(IllegalArgumentException.class, () ->
-                service.reserve(CarType.SEDAN, start, 0)
+                service.reserve(CarType.SEDAN, START, 0)
         );
     }
 
     @Test
+    @DisplayName("should reject null car type")
     void shouldRejectNullCarType() {
-        LocalDateTime start = LocalDateTime.of(2026, 3, 21, 10, 0);
-
         assertThrows(NullPointerException.class, () ->
-                service.reserve(null, start, 1)
+                service.reserve(null, START, 1)
         );
     }
 
     @Test
+    @DisplayName("should reject null start date")
     void shouldRejectNullStart() {
         assertThrows(NullPointerException.class, () ->
                 service.reserve(CarType.SEDAN, null, 1)
